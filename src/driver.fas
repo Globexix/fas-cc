@@ -1,41 +1,11 @@
 use linux "sys/linux.fas"
 
-fn remove_extension(file addr) addr {
-    i i32 = 0
-    while file[u8, i] != 0 {
-        if file[u8, i] == '.' { file[u8, i] = 0; return file }
-        i += 1
-    }
-    return file
-}
-
-fn main(argc i32, argv addr) i32 {
-    if argc < 2 { return -1 }
-
-    output arr[256, u8] = {}
-    i i32 = 0
-    while argv[addr, 1][u8, i] != 0 && i < 255 {
-        output[i] = argv[addr, 1][u8, i]
-        i += 1
-    }
-
-    remove_extension(&output)
-
-    gcc addr = c"/usr/bin/gcc"
-    gcc_args arr[5, addr] = {
-        c"gcc",
-        argv[addr, 1],
-        c"-o",
-        &output,
-        null
-    }
-    envp arr[2, addr] = { c"PATH=/usr/bin:/bin", null }
-
+fn run_command(path addr, args addr, envp addr) i32 {
     pid i64 = sys_fork()
     if pid < 0 { return -1 }
 
     if pid == 0 {
-        sys_execve(gcc, &gcc_args, &envp)
+        sys_execve(path, args, envp)
         // execve failed if it reaches here
         sys_exit(127)
     }
@@ -50,4 +20,121 @@ fn main(argc i32, argv addr) i32 {
     }
 
     return -1
+}
+
+// can truncate a directory name with a "." if file has no extension
+fn remove_extension(file addr) addr {
+    i i32 = 0
+    last_dot i32 = -1
+
+    while file[u8, i] != 0 {
+        if file[u8, i] == '.' { last_dot = i }
+        i += 1
+    }
+
+    if last_dot > 0 {
+        file[u8, last_dot] = 0
+    }
+
+    return file
+}
+
+fn replace_extension(file addr, extension addr) addr {
+    i i32 = 0
+    j i32 = 0
+    last_dot i32 = -1
+
+    while file[u8, i] != 0 {
+        if file[u8, i] == '.' { last_dot = i }
+        i += 1
+    }
+
+    if last_dot > 0 {
+        while extension[u8, j] != 0 {
+            last_dot += 1
+
+            file[u8, last_dot] = extension[u8, j]
+
+            j += 1
+        }
+
+        file[u8, last_dot + 1] = 0
+    }
+
+    return file
+}
+
+fn add_extension(file addr, extension addr) addr {
+    i i32 = 0
+    j i32 = 0
+
+    while file[u8, i] != 0 {
+        i += 1
+    }
+
+    file[u8, i] = '.'
+
+    while extension[u8, j] != 0 {
+        i += 1
+
+        file[u8, i] = extension[u8, j]
+
+        j += 1
+    }
+    file[u8, i + 1] = 0
+
+    return file
+}
+
+fn main(argc i32, argv addr) i32 {
+    if argc < 2 { return -1 }
+
+    output arr[256, u8] = {}
+    assembly arr[256, u8] = {}
+
+    i i32 = 0
+    while argv[addr, 1][u8, i] != 0 && i < 250 {
+        output[i] = argv[addr, 1][u8, i]
+        assembly[i] = argv[addr, 1][u8, i]
+        i += 1
+    }
+
+    replace_extension(&output, c"i")
+    replace_extension(&assembly, c"s")
+
+    gcc addr = c"/usr/bin/gcc"
+    gcc_args arr[7, addr] = {
+        c"gcc",
+        c"-E",
+        c"-P",
+        argv[addr, 1],
+        c"-o",
+        &output,
+        null
+    }
+    envp arr[2, addr] = { c"PATH=/usr/bin:/bin", null }
+    // preprocessor
+    result i32 = run_command(gcc, &gcc_args, &envp)
+    if result != 0 { return result }
+
+
+    gcc_args[1] = c"-S"
+    gcc_args[2] = c"-O"
+    gcc_args[3] = &output
+    gcc_args[5] = &assembly
+    // compile
+    result = run_command(gcc, &gcc_args, &envp)
+    if result != 0 { return result }
+
+    remove_extension(&output)
+
+    gcc_args[1] = &assembly
+    gcc_args[2] = c"-o"
+    gcc_args[3] = &output
+    gcc_args[4] = null
+    // assembler + linker
+    result = run_command(gcc, &gcc_args, &envp)
+    if result != 0 { return result }
+
+    return 0
 }
