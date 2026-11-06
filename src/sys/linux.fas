@@ -2,6 +2,7 @@ const SYS_FORK u64 = 57
 const SYS_WAIT4 u64 = 61
 const SYS_WRITE u64 = 1
 const SYS_EXECVE u64 = 59
+const SYS_UNLINK u64 = 87
 
 const SYS_EXIT_GROUP u64 = 231
 
@@ -22,6 +23,10 @@ fn term_signal(status i32) i32 { return status & 0x7f }
 
 fn sys_fork() i64 {
     return syscall(SYS_FORK)
+}
+
+fn sys_unlink(path addr) i64 {
+    return syscall(SYS_UNLINK, path)
 }
 
 fn sys_wait4(pid i32, status addr) i64 {
