@@ -1,13 +1,32 @@
 use linux "sys/linux.fas"
 
+fn remove_extension(file addr) addr {
+    i i32 = 0
+    while file[u8, i] != 0 {
+        if file[u8, i] == '.' { file[u8, i] = 0; return file }
+        i += 1
+    }
+    return file
+}
+
 fn main(argc i32, argv addr) i32 {
+    if argc < 2 { return -1 }
+
+    output arr[256, u8] = {}
+    i i32 = 0
+    while argv[addr, 1][u8, i] != 0 && i < 255 {
+        output[i] = argv[addr, 1][u8, i]
+        i += 1
+    }
+
+    remove_extension(&output)
 
     gcc addr = c"/usr/bin/gcc"
     gcc_args arr[5, addr] = {
         c"gcc",
-        c"main.c",
+        argv[addr, 1],
         c"-o",
-        c"main",
+        &output,
         null
     }
     envp arr[2, addr] = { c"PATH=/usr/bin:/bin", null }
