@@ -87,6 +87,33 @@ fn add_extension(file addr, extension addr) addr {
     return file
 }
 
+fn read_file(path addr, buffer addr, capacity usize) i64 {
+    if capacity == 0 { return -1 }
+
+    fd i64 = sys_openat(AT_FDCWD, path, O_RDONLY, 0)
+    if fd < 0 { return fd }
+
+    total usize = 0
+
+    while total < capacity - 1 {
+        bytes_read i64 = sys_read(trunc[i32](fd), buffer + total, capacity - 1)
+
+        if bytes_read == -EINTR { continue }
+        if bytes_read < 0 {
+            sys_close(trunc[i32](fd))
+            return bytes_read
+        }
+        if bytes_read == 0 { break }
+
+        total += bitcast[u64](bytes_read)
+    }
+
+    buffer[u8, total] = 0
+    sys_close(trunc[i32](fd))
+
+    return bitcast[i64](total)
+}
+
 fn main(argc i32, argv addr) i32 {
     if argc < 2 { return -1 }
 
@@ -129,6 +156,12 @@ fn main(argc i32, argv addr) i32 {
     // compile
     result = run_command(gcc, &gcc_args, &envp)
     if result != 0 { return result }
+
+    source arr[65536, u8] = {}
+    source_len i64 = read_file(&preprocessed, &source, len(source))
+
+    if source_len < 0 { return -1 }
+
     sys_unlink(&preprocessed)
 
 
