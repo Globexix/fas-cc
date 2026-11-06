@@ -39,6 +39,7 @@ fn remove_extension(file addr) addr {
     return file
 }
 
+// TODO rewrite
 fn replace_extension(file addr, extension addr) addr {
     i i32 = 0
     j i32 = 0
@@ -90,16 +91,19 @@ fn main(argc i32, argv addr) i32 {
     if argc < 2 { return -1 }
 
     output arr[256, u8] = {}
+    preprocessed arr[256, u8] = {}
     assembly arr[256, u8] = {}
 
     i i32 = 0
     while argv[addr, 1][u8, i] != 0 && i < 250 {
         output[i] = argv[addr, 1][u8, i]
         assembly[i] = argv[addr, 1][u8, i]
+        preprocessed[i] = argv[addr, 1][u8, i]
         i += 1
     }
 
-    replace_extension(&output, c"i")
+    remove_extension(&output)
+    replace_extension(&preprocessed, c"i")
     replace_extension(&assembly, c"s")
 
     gcc addr = c"/usr/bin/gcc"
@@ -109,7 +113,7 @@ fn main(argc i32, argv addr) i32 {
         c"-P",
         argv[addr, 1],
         c"-o",
-        &output,
+        &preprocessed,
         null
     }
     envp arr[2, addr] = { c"PATH=/usr/bin:/bin", null }
@@ -120,13 +124,13 @@ fn main(argc i32, argv addr) i32 {
 
     gcc_args[1] = c"-S"
     gcc_args[2] = c"-O"
-    gcc_args[3] = &output
+    gcc_args[3] = &preprocessed
     gcc_args[5] = &assembly
     // compile
     result = run_command(gcc, &gcc_args, &envp)
     if result != 0 { return result }
+    sys_unlink(&preprocessed)
 
-    remove_extension(&output)
 
     gcc_args[1] = &assembly
     gcc_args[2] = c"-o"
@@ -135,6 +139,7 @@ fn main(argc i32, argv addr) i32 {
     // assembler + linker
     result = run_command(gcc, &gcc_args, &envp)
     if result != 0 { return result }
+    sys_unlink(&assembly)
 
     return 0
 }
