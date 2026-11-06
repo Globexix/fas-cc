@@ -1,0 +1,49 @@
+const SYS_FORK u64 = 57
+const SYS_WAIT4 u64 = 61
+const SYS_WRITE u64 = 1
+const SYS_EXECVE u64 = 59
+
+const SYS_EXIT_GROUP u64 = 231
+
+const EINTR i64 = 4
+const EIO i64 = 5
+
+
+
+fn sys_exit(code i32) void {
+    syscall(SYS_EXIT_GROUP, code)
+}
+
+fn exited_normally(status i32) bool { return (status & 0x7f) == 0 }
+fn exit_code(status i32) i32 { return (status >> 8) & 0xff }
+fn term_signal(status i32) i32 { return status & 0x7f }
+
+
+
+fn sys_fork() i64 {
+    return syscall(SYS_FORK)
+}
+
+fn sys_wait4(pid i32, status addr) i64 {
+    while true {
+        r i64 = syscall(SYS_WAIT4, pid, status, 0, 0)
+        if r != -EINTR { return r }
+    }
+    return -EINTR
+}
+
+fn write_fd(fd i32, p addr, n usize) i64 {
+    done usize = 0
+    while done < n {
+        r i64 = syscall(SYS_WRITE, fd, p + done, n - done)
+        if r == -EINTR { continue }
+        if r < 0 { return r }
+        if r == 0 { return -EIO }
+        done += bitcast[u64](r)
+    }
+    return bitcast[i64](done)
+}
+
+fn sys_execve(path addr, argv addr, envp addr) i64 {
+    return syscall(SYS_EXECVE, path, argv, envp)
+}
